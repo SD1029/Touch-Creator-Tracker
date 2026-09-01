@@ -273,7 +273,7 @@ function card(c){
   return `<article class="card">
     <div class="card-top">
       <div class="identity">
-        <div class="avatar">${c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : esc(initials(c.name))}</div>
+        <div class="avatar">${c.avatar ? `<img src="${esc(c.avatar)}" alt="" onerror="this.parentElement.innerHTML='${esc(initials(c.handle||c.platform||'Creator'))}'">` : esc(initials(c.handle||c.platform||'Creator'))}</div>
         <div style="min-width:0">
           <div class="name">${esc(c.handle||c.platform||'Creator')}</div>
           <div class="handle">${esc(c.platform)} · ${esc(c.followers||'Followers not added')}</div>
@@ -312,6 +312,7 @@ function openModal(id=null){
   document.getElementById('creatorId').value='';
   document.getElementById('modalTitle').textContent='Add creator';
   document.getElementById('lookupResult').classList.remove('show');
+  document.getElementById('lookupResult').dataset.avatar='';
   document.getElementById('section').value=activeSection;
   document.getElementById('status').value='Reach-out completed';
   if(id) {
@@ -333,18 +334,35 @@ function analyzeUrl(){
   const box=document.getElementById('lookupResult');
   box.innerHTML=`<strong>${esc(platform)} detected</strong><span>${esc(handle||'Handle could not be detected automatically')}</span>`;
   box.classList.add('show');
-  // Optional public metadata lookup. This is intentionally best-effort:
-  // many social networks block browser-side profile scraping.
-  fetch('https://noembed.com/embed?url='+encodeURIComponent(url))
-    .then(r=>r.ok?r.json():Promise.reject())
-    .then(d=>{
-      const author=d.author_name||d.title;
-      
-      if(d.thumbnail_url){
-        box.innerHTML=`<strong>${esc(platform)} detected</strong><span>${esc(author||handle||'Profile found')}</span>`;
-        box.dataset.avatar=d.thumbnail_url;
+  // Pull the public profile image from page metadata where available.
+  // Social platforms often block direct browser scraping, so use public
+  // metadata resolvers as a best-effort approach.
+  lookupProfileImage(url, platform, handle, box);
+}
+
+async function lookupProfileImage(url, platform, handle, box){
+  const endpoints=[
+    'https://api.microlink.io/?url='+encodeURIComponent(url)+'&meta=true',
+    'https://noembed.com/embed?url='+encodeURIComponent(url)
+  ];
+  for(const endpoint of endpoints){
+    try{
+      const r=await fetch(endpoint);
+      if(!r.ok) continue;
+      const d=await r.json();
+      const image=d?.data?.image?.url || d?.data?.logo?.url || d?.thumbnail_url || d?.image?.url;
+      const author=d?.data?.author?.name || d?.data?.title || d?.author_name || '';
+      if(image){
+        box.dataset.avatar=image;
+        box.innerHTML=`<div style=\"display:flex;align-items:center;gap:10px\">
+          <img src=\"${esc(image)}\" alt=\"\" style=\"width:42px;height:42px;border-radius:50%;object-fit:cover;border:1px solid #e8e0d8\">
+          <span><strong>${esc(platform)} detected</strong><br>${esc(author||handle||'Public profile image found')}</span>
+        </div>`;
+        return;
       }
-    }).catch(()=>{});
+    }catch(e){}
+  }
+  box.innerHTML=`<strong>${esc(platform)} detected</strong><span>${esc(handle||'Profile detected')} · Profile image unavailable</span>`;
 }
 function syncSectionFromStatus(){
   const status=document.getElementById('status').value;
