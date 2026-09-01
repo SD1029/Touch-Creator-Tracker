@@ -273,7 +273,7 @@ function card(c){
   return `<article class="card">
     <div class="card-top">
       <div class="identity">
-        <div class="avatar">${c.avatar ? `<img src="${esc(c.avatar)}" alt="" onerror="this.parentElement.innerHTML='${esc(initials(c.handle||c.platform||'Creator'))}'">` : esc(initials(c.handle||c.platform||'Creator'))}</div>
+        <div class="avatar">${c.avatar || avatarResolverUrl(c) ? `<img src="${esc(c.avatar || avatarResolverUrl(c))}" alt="" loading="lazy" onerror="this.onerror=null;this.src='';this.parentElement.innerHTML='${esc(initials(c.handle||c.platform||'Creator'))}'">` : esc(initials(c.handle||c.platform||'Creator'))}</div>
         <div style="min-width:0">
           <div class="name">${esc(c.handle||c.platform||'Creator')}</div>
           <div class="handle">${esc(c.platform)} · ${esc(c.followers||'Followers not added')}</div>
@@ -325,6 +325,23 @@ function openModal(id=null){
   setTimeout(()=>document.getElementById('profileUrl').focus(),80);
 }
 function closeModal(){ document.getElementById('modalBackdrop').classList.remove('open'); }
+function avatarResolverUrl(c){
+  const handle=(c.handle||'').replace(/^@/,'').trim();
+  if(!handle) return '';
+  const platform=(c.platform||'').toLowerCase();
+  const provider =
+    platform==='instagram' ? 'instagram' :
+    platform==='tiktok' ? 'tiktok' :
+    platform==='youtube' ? 'youtube' :
+    platform==='facebook' ? 'facebook' :
+    platform==='x' ? 'twitter' :
+    platform==='pinterest' ? 'pinterest' :
+    platform==='linkedin' ? 'linkedin' : '';
+  return provider
+    ? `https://unavatar.io/${provider}/${encodeURIComponent(handle)}?fallback=false`
+    : `https://unavatar.io/${encodeURIComponent(handle)}?fallback=false`;
+}
+
 function analyzeUrl(){
   const url=document.getElementById('profileUrl').value.trim();
   if(!url){toast('Paste a profile URL first.');return;}
@@ -334,9 +351,15 @@ function analyzeUrl(){
   const box=document.getElementById('lookupResult');
   box.innerHTML=`<strong>${esc(platform)} detected</strong><span>${esc(handle||'Handle could not be detected automatically')}</span>`;
   box.classList.add('show');
-  // Pull the public profile image from page metadata where available.
-  // Social platforms often block direct browser scraping, so use public
-  // metadata resolvers as a best-effort approach.
+
+  const resolved=avatarResolverUrl({platform,handle});
+  if(resolved){
+    box.dataset.avatar=resolved;
+    box.innerHTML=`<div style="display:flex;align-items:center;gap:10px">
+      <img src="${esc(resolved)}" alt="" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:1px solid #e8e0d8" onerror="this.style.display='none'">
+      <span><strong>${esc(platform)} detected</strong><br>${esc(handle||'Profile image lookup started')}</span>
+    </div>`;
+  }
   lookupProfileImage(url, platform, handle, box);
 }
 
@@ -362,7 +385,9 @@ async function lookupProfileImage(url, platform, handle, box){
       }
     }catch(e){}
   }
-  box.innerHTML=`<strong>${esc(platform)} detected</strong><span>${esc(handle||'Profile detected')} · Profile image unavailable</span>`;
+  if(!box.dataset.avatar){
+    box.innerHTML=`<strong>${esc(platform)} detected</strong><span>${esc(handle||'Profile detected')} · Profile image unavailable</span>`;
+  }
 }
 function syncSectionFromStatus(){
   const status=document.getElementById('status').value;
