@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -121,7 +122,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 
   <section class="toolbar">
     <div class="field">
       <label>Search</label>
-      <input id="search" placeholder="Creator name, handle, niche..." oninput="render()">
+      <input id="search" placeholder="Handle, platform, location..." oninput="render()">
     </div>
     <div class="field">
       <label>Filter status</label>
@@ -130,7 +131,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 
         <option>Reach-out completed</option>
         <option>Collab confirmed</option>
         <option>Product shipped</option>
-        <option>Product received</option><option>Product posted</option>
+        <option>Product received</option><option>Content posted</option>
       </select>
     </div>
     <div class="field">
@@ -173,7 +174,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 
             <input id="profileUrl" type="url" placeholder="https://www.instagram.com/creator/" required>
             <button type="button" class="btn" onclick="analyzeUrl()">Analyze</button>
           </div>
-          <div class="helper">The tracker identifies the platform and handle from the URL. Optional public profile metadata lookup is attempted where supported.</div>
+          <div class="helper">The tracker identifies the platform and handle from the URL. Status automatically moves confirmed collaborations to Confirmed and Content posted to Past.</div>
           <div id="lookupResult" class="lookup-result"></div>
         </div>
 
@@ -304,7 +305,7 @@ function updateCounts(){
   document.getElementById('tabProspective').textContent=counts.prospective;
   document.getElementById('tabConfirmed').textContent=counts.confirmed;
   document.getElementById('tabPast').textContent=counts.past;
-  document.getElementById('countReceived').textContent=creators.filter(c=>c.status==='Product posted').length;
+  document.getElementById('countReceived').textContent=creators.filter(c=>c.status==='Content posted').length;
 }
 function openModal(id=null){
   document.getElementById('creatorForm').reset();
@@ -345,9 +346,16 @@ function analyzeUrl(){
       }
     }).catch(()=>{});
 }
+function syncSectionFromStatus(){
+  const status=document.getElementById('status').value;
+  const section=document.getElementById('section');
+  if(status==='Collab confirmed') section.value='confirmed';
+  if(status==='Content posted') section.value='past';
+}
 function saveCreator(e){
   e.preventDefault();
   const id=document.getElementById('creatorId').value;
+  syncSectionFromStatus();
   const data={
     id:id||uid(),
     handle:document.getElementById('handle').value.trim(),
@@ -374,10 +382,11 @@ function deleteCreator(id){
   creators=creators.filter(x=>x.id!==id); render(); toast('Deletion ready — press Save to store it.');
 }
 function advanceStatus(id){
-  const order=['Reach-out completed','Collab confirmed','Product shipped','Product received','Product posted'];
+  const order=['Reach-out completed','Collab confirmed','Product shipped','Product received','Content posted'];
   const c=creators.find(x=>x.id===id); if(!c)return;
   c.status=order[Math.min(order.indexOf(c.status)+1,order.length-1)];
-  if(c.status==='Product posted') c.section='past';
+  if(c.status==='Collab confirmed') c.section='confirmed';
+  if(c.status==='Content posted') c.section='past';
   c.updatedAt=new Date().toISOString(); render(); toast(c.status+(c.section==='past'?' · moved to Past creators':'')+' — press Save to store it.');
 }
 function exportData(){
